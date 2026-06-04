@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KYC Verifier</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem;
+    }
+
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      margin-bottom: 0.25rem;
+    }
+    .subtitle { color: #64748b; font-size: 0.9rem; margin-bottom: 2rem; }
+
+    .card {
+      background: #1e2130;
+      border: 1px solid #2d3148;
+      border-radius: 12px;
+      padding: 1.5rem;
+      width: 100%;
+      max-width: 860px;
+      margin-bottom: 1.5rem;
+    }
+
+    .upload-area {
+      border: 2px dashed #3b4263;
+      border-radius: 8px;
+      padding: 2rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s;
+      margin-bottom: 1rem;
+    }
+    .upload-area:hover, .upload-area.drag-over { border-color: #6366f1; }
+    .upload-area input[type="file"] { display: none; }
+    .upload-icon { font-size: 2.5rem; margin-bottom: 0.5rem; }
+    .upload-area p { color: #64748b; font-size: 0.9rem; }
+    .upload-area p span { color: #6366f1; text-decoration: underline; cursor: pointer; }
+
+    #preview-wrap { margin-bottom: 1rem; display: none; text-align: center; }
+    #preview-wrap img { max-height: 180px; border-radius: 6px; border: 1px solid #2d3148; }
+
+    button {
+      width: 100%;
+      padding: 0.75rem;
+      background: #6366f1;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s, opacity 0.2s;
+    }
+    button:hover:not(:disabled) { background: #4f52c9; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .loader {
+      display: none;
+      text-align: center;
+      padding: 1rem;
+      color: #64748b;
+    }
+    .spinner {
+      width: 32px; height: 32px;
+      border: 3px solid #2d3148;
+      border-top-color: #6366f1;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin: 0 auto 0.5rem;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #results { display: none; }
+    .section-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #64748b;
+      margin-bottom: 0.75rem;
+    }
+
+    .images-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    @media (max-width: 700px) { .images-grid { grid-template-columns: 1fr; } }
+    .img-block label { display: block; font-size: 0.78rem; color: #64748b; margin-bottom: 0.4rem; }
+    .img-block img {
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid #2d3148;
+      display: block;
+    }
+
+    .det-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+    .det-table th, .det-table td {
+      padding: 0.5rem 0.75rem;
+      text-align: left;
+      border-bottom: 1px solid #2d3148;
+    }
+    .det-table th { color: #64748b; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; }
+    .pill {
+      display: inline-block;
+      padding: 0.15rem 0.55rem;
+      border-radius: 99px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .pill-yes  { background: #14532d; color: #4ade80; }
+    .pill-no   { background: #450a0a; color: #f87171; }
+    .pill-na   { background: #1e2130; color: #64748b; }
+
+    .filters-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 0.75rem;
+    }
+    .filter-chip {
+      background: #161824;
+      border: 1px solid #2d3148;
+      border-radius: 8px;
+      padding: 0.65rem 0.75rem;
+    }
+    .filter-chip .filter-name { font-size: 0.78rem; color: #94a3b8; margin-bottom: 0.35rem; }
+    .badge {
+      display: inline-block;
+      padding: 0.2rem 0.6rem;
+      border-radius: 99px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .badge-pending { background: #374151; color: #9ca3af; }
+    .badge-pass    { background: #14532d; color: #4ade80; }
+    .badge-fail    { background: #450a0a; color: #f87171; }
+    .badge-warn    { background: #451a03; color: #fb923c; }
+    .badge-error   { background: #451a03; color: #fb923c; }
+    .filter-score  { font-size: 0.68rem; color: #64748b; margin-top: 0.3rem; }
+    .filter-reason { font-size: 0.68rem; color: #94a3b8; margin-top: 0.25rem; line-height: 1.4; }
+
+    .filter-breakdown { margin-top: 0.5rem; border-top: 1px solid #2d3148; padding-top: 0.4rem; display: flex; flex-direction: column; gap: 0.35rem; }
+    .breakdown-row    { display: flex; align-items: center; flex-wrap: wrap; gap: 0.3rem; }
+    .breakdown-label  { font-size: 0.68rem; color: #64748b; min-width: 72px; }
+    .breakdown-score  { font-size: 0.66rem; color: #64748b; }
+    .breakdown-reason { font-size: 0.66rem; color: #94a3b8; width: 100%; padding-left: 75px; line-height: 1.4; margin-top: 0.1rem; }
+
+    details { margin-top: 0.75rem; }
+    details summary {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #94a3b8;
+      user-select: none;
+      padding: 0.25rem 0;
+    }
+    details summary:hover { color: #e2e8f0; }
+    details pre {
+      background: #1a1a1a;
+      color: #e0e0e0;
+      font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+      font-size: 0.75rem;
+      padding: 12px;
+      border-radius: 6px;
+      overflow-x: auto;
+      overflow-y: auto;
+      max-height: 300px;
+      margin-top: 0.5rem;
+    }
+
+    .error-box {
+      background: #450a0a;
+      border: 1px solid #7f1d1d;
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      color: #fca5a5;
+      font-size: 0.875rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>KYC ID Verifier</h1>
+  <p class="subtitle">Upload an ID document to run authenticity checks</p>
+
+  <div class="card">
+    <div class="upload-area" id="drop-zone">
+      <input type="file" id="file-input" accept="image/*" />
+      <div class="upload-icon">🪪</div>
+      <p>Drag &amp; drop an image here, or <span onclick="document.getElementById('file-input').click()">browse</span></p>
+    </div>
+
+    <div id="preview-wrap">
+      <img id="preview-img" src="" alt="Preview" />
+    </div>
+
+    <button id="submit-btn" disabled>Verify Document</button>
+  </div>
+
+  <div class="card loader" id="loader">
+    <div class="spinner"></div>
+    <p>Enhancing &amp; analysing — this may take a moment…</p>
+  </div>
+
+  <div class="card" id="results">
+    <p class="section-title">Images</p>
+    <div class="images-grid">
+      <div class="img-block">
+        <label>Original Image</label>
+        <img id="img-original" src="" alt="Original" />
+      </div>
+      <div class="img-block">
+        <label>Sent to Sightengine (Original Raw)</label>
+        <img id="img-se-input" src="" alt="Sightengine Input" />
+      </div>
+    </div>
+
+    <p class="section-title" style="margin-top:1.5rem;">Filters</p>
+    <div class="filters-grid" id="filters-grid"></div>
+
+    <p class="section-title" style="margin-top:1.5rem;">Raw API Responses</p>
+    <details>
+      <summary>🤖 Claude Vision — Raw Response</summary>
+      <pre id="raw-claude"></pre>
+    </details>
+    <details>
+      <summary>🔍 Sightengine — Raw Responses</summary>
+      <pre id="raw-sightengine"></pre>
+    </details>
+  </div>
+
+  <div class="card error-box" id="error-box" style="display:none;"></div>
+
+  <script>
+    const FILTER_LABELS = {
+      takenFromScreen:         "Screen Recapture",
+      takenFromPaper:          "Paper Copy",
+      hasSuperimposedElements: "Superimposed Elements",
+      alteredByAI:             "AI Altered",
+      takenInRealLife:         "Real Life Photo",
+    };
+
+    const FILTER_ORDER = [
+      "takenFromScreen",
+      "takenFromPaper",
+      "hasSuperimposedElements",
+      "alteredByAI",
+      "takenInRealLife",
+    ];
+
+    const fileInput   = document.getElementById("file-input");
+    const dropZone    = document.getElementById("drop-zone");
+    const previewWrap = document.getElementById("preview-wrap");
+    const previewImg  = document.getElementById("preview-img");
+    const submitBtn   = document.getElementById("submit-btn");
+    const loader      = document.getElementById("loader");
+    const results     = document.getElementById("results");
+    const errorBox    = document.getElementById("error-box");
+
+    let selectedFile = null;
+
+    function setFile(f) {
+      if (!f || !f.type.startsWith("image/")) return;
+      selectedFile = f;
+      previewImg.src = URL.createObjectURL(f);
+      previewWrap.style.display = "block";
+      submitBtn.disabled = false;
+      results.style.display = "none";
+      errorBox.style.display = "none";
+    }
+
+    fileInput.addEventListener("change", () => setFile(fileInput.files[0]));
+
+    dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("drag-over"); });
+    dropZone.addEventListener("dragleave", () => dropZone.classList.remove("drag-over"));
+    dropZone.addEventListener("drop", e => {
+      e.preventDefault();
+      dropZone.classList.remove("drag-over");
+      setFile(e.dataTransfer.files[0]);
+    });
+    dropZone.addEventListener("click", () => fileInput.click());
+
+    submitBtn.addEventListener("click", async () => {
+      if (!selectedFile) return;
+
+      submitBtn.disabled = true;
+      loader.style.display = "block";
+      results.style.display = "none";
+      errorBox.style.display = "none";
+
+      const fd = new FormData();
+      fd.append("file", selectedFile);
+
+      try {
+        const resp = await fetch("/verify", { method: "POST", body: fd });
+        if (!resp.ok) throw new Error(`Server error ${resp.status}`);
+        const data = await resp.json();
+        renderResults(data);
+      } catch (err) {
+        errorBox.textContent = "Error: " + err.message;
+        errorBox.style.display = "block";
+      } finally {
+        loader.style.display = "none";
+        submitBtn.disabled = false;
+      }
+    });
+
+    function pill(bool) {
+      return bool
+        ? `<span class="pill pill-yes">Yes</span>`
+        : `<span class="pill pill-no">No</span>`;
+    }
+
+    function renderResults(data) {
+      const ts = "?t=" + Date.now();
+      document.getElementById("img-original").src = data.original_image_url    + ts;
+      document.getElementById("img-se-input").src = data.sightengine_input_url + ts;
+
+      const grid    = document.getElementById("filters-grid");
+      const scores  = data.filter_scores  || {};
+      const reasons = data.filter_reasons || {};
+      const bd      = data.filter1_breakdown || {};
+      grid.innerHTML = "";
+
+      function badgeCls(v) {
+        return v === "pass" ? "badge-pass" : v === "fail" ? "badge-fail" : v === "error" ? "badge-error" : "badge-pending";
+      }
+
+      for (const key of FILTER_ORDER) {
+        const val   = (data.filters || {})[key] ?? "pending";
+        const label = FILTER_LABELS[key] || key;
+
+        if (key === "takenFromScreen") {
+          const se = bd.sightengine_recapture || {};
+          const cl = bd.claude_screen        || {};
+          grid.innerHTML += `
+            <div class="filter-chip">
+              <div class="filter-name">${label}</div>
+              <span class="badge ${badgeCls(val)}">${val}</span>
+              <div class="filter-breakdown">
+                <div class="breakdown-row">
+                  <span class="breakdown-label">Sightengine</span>
+                  <span class="badge ${badgeCls(se.result)}">${se.result ?? "—"}</span>
+                  ${se.score != null ? `<span class="breakdown-score">score: ${se.score}</span>` : ""}
+                </div>
+                <div class="breakdown-row">
+                  <span class="breakdown-label">Claude</span>
+                  <span class="badge ${badgeCls(cl.result)}">${cl.result ?? "—"}</span>
+                  ${cl.confidence != null ? `<span class="breakdown-score">confidence: ${cl.confidence}</span>` : ""}
+                </div>
+                ${cl.reason ? `<div class="breakdown-row"><div class="breakdown-reason">${cl.reason}</div></div>` : ""}
+              </div>
+            </div>`;
+          continue;
+        }
+
+        const score = scores[key];
+        const scoreLine = score != null
+          ? `<div class="filter-score">score: ${score}</div>`
+          : "";
+        const reason = reasons[key];
+        const reasonLine = reason
+          ? `<div class="filter-reason">${reason}</div>`
+          : "";
+
+        grid.innerHTML += `
+          <div class="filter-chip">
+            <div class="filter-name">${label}</div>
+            <span class="badge ${badgeCls(val)}">${val}</span>
+            ${scoreLine}
+            ${reasonLine}
+          </div>`;
+      }
+
+      document.getElementById("raw-claude").textContent =
+        data.claude_error
+          ? `ERROR: ${data.claude_error}`
+          : (data.claude_raw || "(no response)");
+      document.getElementById("raw-sightengine").textContent =
+        JSON.stringify(data.sightengine_raw, null, 2);
+
+      results.style.display = "block";
+    }
+  </script>
+</body>
+</html>
