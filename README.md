@@ -18,7 +18,7 @@ A layered KYC document-authenticity API that runs four independent fraud filters
 ### 1. Clone the repository
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/rafayshahood/ID-Detector-with-Filters.git
 cd kyc-verify
 ```
 
