@@ -17,8 +17,10 @@ ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
 _key = ANTHROPIC_API_KEY
 print(f"[startup] API key loaded: {bool(_key)}, length: {len(_key)}, prefix: {_key[:8]}")
 
-SE_API_USER   = os.environ["SE_API_USER"]
-SE_API_SECRET = os.environ["SE_API_SECRET"]
+SE_API_USER   = os.getenv("SE_API_USER", "")
+SE_API_SECRET = os.getenv("SE_API_SECRET", "")
+SIGHTENGINE_FILTER1_ENABLED = os.getenv("SIGHTENGINE_FILTER1_ENABLED", "true").lower() == "true"
+SIGHTENGINE_FILTER4_ENABLED = os.getenv("SIGHTENGINE_FILTER4_ENABLED", "true").lower() == "true"
 SE_URL        = "https://api.sightengine.com/1.0/check.json"
 
 BASE_DIR      = Path(__file__).parent
@@ -239,6 +241,8 @@ def parse_claude_response(text: str) -> dict:
 
 
 def combine_filter1(se_result: str, claude_result: str) -> str:
+    if se_result == "disabled":
+        return claude_result if claude_result in ("pass", "fail") else "error"
     if se_result == "fail" or claude_result == "fail":
         return "fail"
     if se_result == "pass" or claude_result == "pass":
@@ -260,9 +264,12 @@ async def verify(file: UploadFile = File(...)):
     detected_mt = _media_type_from_bytes(orig_bytes)
     print(f"[verify] filename={filename} media_type={detected_mt} bytes={len(orig_bytes)}")
 
+    async def _se_disabled():
+        return {"score": None, "result": "disabled", "raw": "disabled"}
+
     results = await asyncio.gather(
-        check_recapture(orig_bytes, filename),
-        check_genai(orig_bytes, filename),
+        check_recapture(orig_bytes, filename) if SIGHTENGINE_FILTER1_ENABLED else _se_disabled(),
+        check_genai(orig_bytes, filename)     if SIGHTENGINE_FILTER4_ENABLED else _se_disabled(),
         check_claude_filters(orig_bytes, detected_mt, filename),
         return_exceptions=True,
     )
@@ -286,7 +293,7 @@ async def verify(file: UploadFile = File(...)):
             "takenFromScreen":         filter1_combined,
             "takenFromPaper":          cf["takenFromPaper"]["result"],
             "hasSuperimposedElements": cf["hasSuperimposedElements"]["result"],
-            "alteredByAI":             genai_res["result"],
+            "alteredByAI":             "pending" if genai_res["result"] == "disabled" else genai_res["result"],
             "takenInRealLife":         "pending",
         },
         "filter_scores": {
